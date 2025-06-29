@@ -74,7 +74,7 @@ bash maria_db/run.sh
 - **Chatbot Interface**: Access the UI at `http://localhost:8051/`
 
 ## Application Services
-![Home Loan Chatbot Architecture](images/homeloan_chatbot_architect.png)
+![Home Loan Chatbot Architecture](homeloan_chatbot_architect.png)
 
 ### RAG (Retrieval-Augmented Generation) Home Loan FAQ
 
