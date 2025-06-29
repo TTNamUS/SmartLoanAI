@@ -1,0 +1,144 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mariadb-init-script
+  namespace: smartloan-ai
+data:
+  init.sql: |
+    CREATE DATABASE IF NOT EXISTS demo_bot CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    USE demo_bot;
+    
+    CREATE TABLE IF NOT EXISTS chat_conversations (
+        id INT NOT NULL AUTO_INCREMENT,
+        conversation_id VARCHAR(50) NOT NULL DEFAULT '',
+        bot_id VARCHAR(100) NOT NULL,
+        user_id VARCHAR(100) NOT NULL,
+        message TEXT,
+        is_request BOOLEAN DEFAULT TRUE,
+        completed BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id)
+    );
+
+    CREATE TABLE IF NOT EXISTS HomeLoanProfile (
+        id INT NOT NULL AUTO_INCREMENT,
+        name VARCHAR(100) NOT NULL,
+        income INT NOT NULL,
+        loan_amount INT NOT NULL,
+        loan_term INT NOT NULL,
+        loan_to_value_ratio FLOAT NOT NULL,
+        debt_to_income_ratio FLOAT NOT NULL,
+        property_value FLOAT NOT NULL,
+        home_purpose VARCHAR(255) NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id)
+    );
+    
+    -- Grant permissions
+    GRANT ALL PRIVILEGES ON demo_bot.* TO 'root'@'%';
+    FLUSH PRIVILEGES;
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mariadb-deployment
+  namespace: smartloan-ai
+  labels:
+    app: mariadb
+    component: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mariadb
+  template:
+    metadata:
+      labels:
+        app: mariadb
+        component: database
+    spec:
+      containers:
+      - name: mariadb
+        image: mariadb:11.5.1-ubi9-rc
+        env:
+        - name: MARIADB_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: smartloan-secrets
+              key: MARIADB_ROOT_PASSWORD
+        - name: MARIADB_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: smartloan-config
+              key: MYSQL_DATABASE
+        - name: MARIADB_USER
+          value: "smartloan"
+        - name: MARIADB_PASSWORD
+          value: "smartloan123"
+        ports:
+        - containerPort: 3306
+        volumeMounts:
+        - name: mariadb-data
+          mountPath: /var/lib/mysql
+        - name: init-script
+          mountPath: /docker-entrypoint-initdb.d
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          exec:
+            command:
+            - mariadb-admin
+            - ping
+            - -h
+            - localhost
+            - -u
+            - root
+            - -p${MARIADB_ROOT_PASSWORD}
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          exec:
+            command:
+            - mariadb-admin
+            - ping
+            - -h
+            - localhost
+            - -u
+            - root
+            - -p${MARIADB_ROOT_PASSWORD}
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+      volumes:
+      - name: mariadb-data
+        persistentVolumeClaim:
+          claimName: mariadb-pvc
+      - name: init-script
+        configMap:
+          name: mariadb-init-script
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mariadb-service
+  namespace: smartloan-ai
+  labels:
+    app: mariadb
+    component: database
+spec:
+  selector:
+    app: mariadb
+  ports:
+  - port: 3306
+    targetPort: 3306
+    protocol: TCP
+    name: mysql
+  type: ClusterIP

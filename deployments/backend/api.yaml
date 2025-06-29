@@ -1,0 +1,112 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: idp-api-deployment
+  namespace: smartloan-ai
+  labels:
+    app: idp-api
+    component: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: idp-api
+  template:
+    metadata:
+      labels:
+        app: idp-api
+        component: backend
+    spec:
+      containers:
+      - name: idp-api
+        image: smartloan-ai/backend:latest
+        ports:
+        - containerPort: 8081
+        env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: smartloan-secrets
+              key: OPENAI_API_KEY
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: smartloan-secrets
+              key: SECRET_KEY
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: smartloan-secrets
+              key: MYSQL_PASSWORD
+        envFrom:
+        - configMapRef:
+            name: smartloan-config
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        volumeMounts:
+        - name: app-logs
+          mountPath: /appllm/logs
+      volumes:
+      - name: app-logs
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: idp-api-service
+  namespace: smartloan-ai
+  labels:
+    app: idp-api
+    component: backend
+spec:
+  selector:
+    app: idp-api
+  ports:
+  - port: 8081
+    targetPort: 8081
+    protocol: TCP
+    name: http
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: idp-api-ingress
+  namespace: smartloan-ai
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type, Authorization"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: api.smartloan.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: idp-api-service
+            port:
+              number: 8081

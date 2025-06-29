@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: idp-worker-deployment
+  namespace: smartloan-ai
+  labels:
+    app: idp-worker
+    component: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: idp-worker
+  template:
+    metadata:
+      labels:
+        app: idp-worker
+        component: backend
+    spec:
+      containers:
+      - name: idp-worker
+        image: smartloan-ai/backend:latest
+        command: 
+        - "celery"
+        - "-A"
+        - "src.celery_app"
+        - "worker"
+        - "--loglevel=debug"
+        env:
+        - name: DEBUG
+          value: "False"
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: smartloan-secrets
+              key: OPENAI_API_KEY
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: smartloan-secrets
+              key: SECRET_KEY
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: smartloan-secrets
+              key: MYSQL_PASSWORD
+        envFrom:
+        - configMapRef:
+            name: smartloan-config
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        volumeMounts:
+        - name: worker-logs
+          mountPath: /appllm/logs
+        livenessProbe:
+          exec:
+            command:
+            - celery
+            - -A
+            - src.celery_app
+            - inspect
+            - ping
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - celery
+            - -A
+            - src.celery_app
+            - inspect
+            - ping
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+      volumes:
+      - name: worker-logs
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: idp-worker-service
+  namespace: smartloan-ai
+  labels:
+    app: idp-worker
+    component: backend
+spec:
+  selector:
+    app: idp-worker
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: metrics
+  type: ClusterIP

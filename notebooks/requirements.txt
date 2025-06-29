@@ -1,0 +1,7 @@
+matplotlib
+seaborn
+xgboost
+imblearn
+nbformat
+wikipedia
+faiss-cpu 

@@ -1,0 +1,81 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: smartloan-network-policy
+  namespace: smartloan-ai
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow ingress from ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8081
+    - protocol: TCP
+      port: 8051
+  # Allow internal communication
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: smartloan-ai
+    ports:
+    - protocol: TCP
+      port: 8081
+    - protocol: TCP
+      port: 8051
+    - protocol: TCP
+      port: 6379
+    - protocol: TCP
+      port: 6333
+    - protocol: TCP
+      port: 6334
+    - protocol: TCP
+      port: 3306
+  egress:
+  # Allow egress to DNS
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+  # Allow egress to external APIs
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+  # Allow internal communication
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: smartloan-ai
+    ports:
+    - protocol: TCP
+      port: 8081
+    - protocol: TCP
+      port: 8051
+    - protocol: TCP
+      port: 6379
+    - protocol: TCP
+      port: 6333
+    - protocol: TCP
+      port: 6334
+    - protocol: TCP
+      port: 3306
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all-default
+  namespace: smartloan-ai
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress

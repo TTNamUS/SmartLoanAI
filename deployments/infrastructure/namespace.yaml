@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: smartloan-ai
+  labels:
+    name: smartloan-ai
+    app: smartloan-ai
